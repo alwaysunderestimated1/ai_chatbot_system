@@ -42,11 +42,8 @@ async def stream_message(request: ChatRequest):
 
 @router.get("/history/{session_id}")
 async def get_history(session_id: str):
-    history = await chat_service.get_history(session_id)
-    return {"session_id": session_id, "history": history}
-
-
-@router.delete("/session/{session_id}")
-async def clear_session(session_id: str):
-    await chat_service.clear_session(session_id)
-    return {"message": f"Session {session_id} cleared."}
+    try:
+        history = await chat_service.get_history(session_id)
+        return {"session_id": session_id, "history": history}
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))

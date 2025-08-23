@@ -1,40 +1,40 @@
-from datetime import datetime, timezone
 from typing import List, Optional, AsyncGenerator
-from app.database.mongodb import get_db
-from app.models.chat import Message, Session
+from app.models.chat import Message
 from app.services.openai_service import get_chat_completion, stream_chat_completion
-
-
-async def get_or_create_session(session_id: str) -> Session:
-    db = get_db()
-    doc = await db.sessions.find_one({"session_id": session_id})
-    if doc:
-        return Session(**doc)
-    session = Session(session_id=session_id)
-    await db.sessions.insert_one(session.model_dump())
-    return session
+from app.services import session_service
 
 
 async def chat(
     session_id: str,
     user_message: str,
-    system_prompt: str,
+    system_prompt: Optional[str],
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
 ) -> tuple[str, List[Message], dict]:
-    session = await get_or_create_session(session_id)
-    session.messages.append(Message(role="user", content=user_message))
+    session = await session_service.get_or_create_session(session_id, system_prompt)
 
+    await session_service.set_title_from_first_message(session_id, user_message)
+
+    session.messages.append(Message(role="user", content=user_message))
     openai_messages = [{"role": m.role, "content": m.content} for m in session.messages]
-    result = await get_chat_completion(openai_messages, system_prompt, temperature, max_tokens)
+    result = await get_chat_completion(
+        openai_messages,
+        system_prompt or session.system_prompt,
+        temperature,
+        max_tokens,
+    )
 
     session.messages.append(Message(role="assistant", content=result["content"]))
-    session.updated_at = datetime.now(timezone.utc)
 
+    from datetime import datetime, timezone
+    from app.database.mongodb import get_db
     db = get_db()
     await db.sessions.update_one(
         {"session_id": session_id},
-        {"$set": {"messages": [m.model_dump() for m in session.messages], "updated_at": session.updated_at}},
+        {"$set": {
+            "messages": [m.model_dump() for m in session.messages],
+            "updated_at": datetime.now(timezone.utc),
+        }, "$inc": {"message_count": 2}},
         upsert=True,
     )
 
@@ -44,28 +44,40 @@ async def chat(
 async def stream_chat(
     session_id: str,
     user_message: str,
-    system_prompt: str,
+    system_prompt: Optional[str],
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
 ) -> AsyncGenerator[str, None]:
-    session = await get_or_create_session(session_id)
-    session.messages.append(Message(role="user", content=user_message))
+    session = await session_service.get_or_create_session(session_id, system_prompt)
 
+    await session_service.set_title_from_first_message(session_id, user_message)
+
+    session.messages.append(Message(role="user", content=user_message))
     openai_messages = [{"role": m.role, "content": m.content} for m in session.messages]
     full_reply = []
 
     async def _generate():
-        async for chunk in stream_chat_completion(openai_messages, system_prompt, temperature, max_tokens):
+        async for chunk in stream_chat_completion(
+            openai_messages,
+            system_prompt or session.system_prompt,
+            temperature,
+            max_tokens,
+        ):
             full_reply.append(chunk)
             yield chunk
 
         reply_text = "".join(full_reply)
         session.messages.append(Message(role="assistant", content=reply_text))
-        session.updated_at = datetime.now(timezone.utc)
+
+        from datetime import datetime, timezone
+        from app.database.mongodb import get_db
         db = get_db()
         await db.sessions.update_one(
             {"session_id": session_id},
-            {"$set": {"messages": [m.model_dump() for m in session.messages], "updated_at": session.updated_at}},
+            {"$set": {
+                "messages": [m.model_dump() for m in session.messages],
+                "updated_at": datetime.now(timezone.utc),
+            }, "$inc": {"message_count": 2}},
             upsert=True,
         )
 
@@ -73,10 +85,5 @@ async def stream_chat(
 
 
 async def get_history(session_id: str) -> List[Message]:
-    session = await get_or_create_session(session_id)
+    session = await session_service.get_session(session_id)
     return session.messages
-
-
-async def clear_session(session_id: str) -> None:
-    db = get_db()
-    await db.sessions.delete_one({"session_id": session_id})
