@@ -15,6 +15,8 @@ class ChatRequest(BaseModel):
     system_prompt: Optional[str] = None
     temperature: Optional[float] = None
     max_tokens: Optional[int] = None
+    use_rag: bool = False
+    use_tools: bool = False
 
 
 class ChatResponse(BaseModel):

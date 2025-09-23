@@ -15,6 +15,8 @@ async def send_message(request: ChatRequest):
             system_prompt=request.system_prompt,
             temperature=request.temperature,
             max_tokens=request.max_tokens,
+            use_rag=request.use_rag,
+            use_tools=request.use_tools,
         )
         return ChatResponse(session_id=request.session_id, reply=reply, history=history, usage=usage)
     except ValueError as e:
@@ -32,6 +34,7 @@ async def stream_message(request: ChatRequest):
             system_prompt=request.system_prompt,
             temperature=request.temperature,
             max_tokens=request.max_tokens,
+            use_rag=request.use_rag,
         )
         return StreamingResponse(generator, media_type="text/event-stream")
     except ValueError as e:
