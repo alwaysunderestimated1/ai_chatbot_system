@@ -1,17 +1,26 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+
 from app.config import settings
 from app.database.mongodb import connect_db, close_db, get_db
-from app.routes import chat, sessions, documents
+from app.limiter import limiter
+from app.routes import auth, chat, sessions, documents
 
 
 async def create_indexes():
     db = get_db()
     await db.sessions.create_index("session_id", unique=True)
     await db.sessions.create_index("updated_at")
+    await db.sessions.create_index("user_id")
     await db.documents.create_index("doc_id", unique=True)
     await db.document_chunks.create_index("doc_id")
     await db.document_chunks.create_index("chunk_id", unique=True)
+    await db.users.create_index("user_id", unique=True)
+    await db.users.create_index("username", unique=True)
+    await db.users.create_index("email", unique=True)
 
 
 @asynccontextmanager
@@ -28,6 +37,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
+
+app.include_router(auth.router)
 app.include_router(chat.router)
 app.include_router(sessions.router)
 app.include_router(documents.router)

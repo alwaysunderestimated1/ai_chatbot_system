@@ -11,6 +11,10 @@ class Settings(BaseSettings):
     mongodb_db: str = "chatbot_db"
     app_title: str = "AI Chatbot API"
     app_version: str = "0.1.0"
+    jwt_secret: str = "change-this-in-production"
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 30
+    refresh_token_expire_days: int = 7
 
     class Config:
         env_file = ".env"

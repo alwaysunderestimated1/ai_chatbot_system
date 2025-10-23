@@ -35,11 +35,12 @@ async def chat(
     max_tokens: Optional[int] = None,
     use_rag: bool = False,
     use_tools: bool = False,
+    user_id: Optional[str] = None,
 ) -> tuple[str, List[Message], dict]:
     validate_message(user_message)
-    check_rate_limit(session_id)
+    check_rate_limit(user_id or session_id)
 
-    session = await session_service.get_or_create_session(session_id, system_prompt)
+    session = await session_service.get_or_create_session(session_id, system_prompt, user_id)
     await session_service.set_title_from_first_message(session_id, user_message)
 
     effective_system_prompt = system_prompt or session.system_prompt
@@ -74,11 +75,12 @@ async def stream_chat(
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
     use_rag: bool = False,
+    user_id: Optional[str] = None,
 ) -> AsyncGenerator[str, None]:
     validate_message(user_message)
-    check_rate_limit(session_id)
+    check_rate_limit(user_id or session_id)
 
-    session = await session_service.get_or_create_session(session_id, system_prompt)
+    session = await session_service.get_or_create_session(session_id, system_prompt, user_id)
     await session_service.set_title_from_first_message(session_id, user_message)
 
     effective_system_prompt = system_prompt or session.system_prompt
@@ -105,6 +107,6 @@ async def stream_chat(
     return _generate()
 
 
-async def get_history(session_id: str) -> List[Message]:
-    session = await session_service.get_session(session_id)
+async def get_history(session_id: str, user_id: Optional[str] = None) -> List[Message]:
+    session = await session_service.get_session(session_id, user_id)
     return session.messages

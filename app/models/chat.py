@@ -28,6 +28,7 @@ class ChatResponse(BaseModel):
 
 class Session(BaseModel):
     session_id: str
+    user_id: Optional[str] = None
     title: str = "New Conversation"
     system_prompt: str = "You are a helpful assistant."
     messages: List[Message] = []
@@ -38,6 +39,7 @@ class Session(BaseModel):
 
 class SessionSummary(BaseModel):
     session_id: str
+    user_id: Optional[str] = None
     title: str
     message_count: int
     created_at: datetime
